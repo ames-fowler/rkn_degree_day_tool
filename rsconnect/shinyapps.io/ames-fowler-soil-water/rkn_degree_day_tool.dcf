@@ -1,0 +1,12 @@
+name: rkn_degree_day_tool
+title: rkn_degree_day_tool
+username: ames-fowler-soil-water
+account: ames-fowler-soil-water
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16830385
+bundleId: 11670490
+url: https://ames-fowler-soil-water.shinyapps.io/rkn_degree_day_tool/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
