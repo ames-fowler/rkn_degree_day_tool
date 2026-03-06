@@ -148,6 +148,7 @@ ui <- fluidPage(
     
     mainPanel(
       tabsetPanel(
+        id = "main_tabs",
         
         tabPanel(
           "Map",
@@ -187,7 +188,7 @@ server <- function(input, output, session) {
   # Returns selected location
   ##########################################################
   
-  location <- mapModuleServer("map")
+  location <- mapModuleServer("map", parent_session = session)
   
   
   

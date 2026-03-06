@@ -58,6 +58,14 @@ temperaturePlotServer <- function(id, dd_data, base_temp) {
       
       df <- df %>% arrange(date)
       
+      planting_date <- min(df$date, na.rm = TRUE)
+      
+      x_start <- planting_date - 10
+      x_end   <- planting_date + 110
+      
+      df <- df %>%
+        filter(date >= x_start & date <= x_end)
+      
       obs <- df %>%
         filter(source == "Observed") %>%
         arrange(date)
@@ -66,10 +74,6 @@ temperaturePlotServer <- function(id, dd_data, base_temp) {
         filter(source == "Forecast") %>%
         arrange(date)
       
-      planting_date <- min(df$date, na.rm = TRUE)
-      
-      x_start <- planting_date - 10
-      x_end   <- planting_date + 110
       
       y_min <- min(c(df$mean_temp_c, base_temp()), na.rm = TRUE)
       y_max <- max(c(df$mean_temp_c, base_temp()), na.rm = TRUE)

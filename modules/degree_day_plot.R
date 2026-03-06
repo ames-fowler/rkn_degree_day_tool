@@ -64,6 +64,14 @@ degreeDayPlotServer <- function(id, dd_data, risk1, risk2, risk3) {
       
       df <- df %>% arrange(date)
       
+      planting_date <- min(df$date, na.rm = TRUE)
+      
+      x_start <- planting_date - 10
+      x_end   <- planting_date + 110
+      
+      df <- df %>%
+        filter(date >= x_start & date <= x_end)
+      
       obs <- df %>%
         filter(source == "Observed") %>%
         arrange(date)
@@ -72,10 +80,7 @@ degreeDayPlotServer <- function(id, dd_data, risk1, risk2, risk3) {
         filter(source == "Forecast") %>%
         arrange(date)
       
-      planting_date <- min(df$date, na.rm = TRUE)
-      
-      x_start <- planting_date - 10
-      x_end   <- planting_date + 110
+
       
       x_min <- x_start
       x_max <- x_end

@@ -38,15 +38,18 @@ mapModuleUI <- function(id) {
       tags$ol(
         tags$li("Select a location on the map using search, click, or polygon drawing."),
         tags$li("Choose the planting date for the field."),
+        tags$li("Adjust the base temperature or risk thresholds if needed."),
         tags$li("View predicted infection timing and risk progression on the Risk Plots tab.")
       ),
       
       hr()
     ),
     
-    fluidRow(
-      column(
-        width = 9,
+    div(
+      style = "display: flex; gap: 10px; align-items: flex-end;",
+      
+      div(
+        style = "flex: 1;",
         textInput(
           inputId = ns("location_query"),
           label = NULL,
@@ -54,9 +57,9 @@ mapModuleUI <- function(id) {
           placeholder = "Search address or paste lat,lon"
         )
       ),
-      column(
-        width = 3,
-        br(),
+      
+      div(
+        style = "width: 140px; margin-bottom: 8px;",
         actionButton(
           inputId = ns("search_btn"),
           label = "Find",
@@ -72,6 +75,8 @@ mapModuleUI <- function(id) {
     ),
     
     leafletOutput(ns("map"), height = "350px"),
+    
+    uiOutput(ns("selection_action_ui")),
     
     tags$div(
       style = "margin-top: 10px;",
@@ -96,7 +101,7 @@ mapModuleUI <- function(id) {
 # SERVER
 ############################################################
 
-mapModuleServer <- function(id) {
+mapModuleServer <- function(id, parent_session) {
   moduleServer(id, function(input, output, session) {
     
     ########################################################
@@ -106,7 +111,8 @@ mapModuleServer <- function(id) {
       lat = 40.5853,
       lon = -105.0844,
       label = "Fort Collins, CO",
-      geom_type = "Point"
+      geom_type = "Point",
+      has_user_selection = FALSE
     )
     
     ########################################################
@@ -174,6 +180,7 @@ mapModuleServer <- function(id) {
       rv$lon <- loc$lon
       rv$label <- if (!is.null(loc$label)) loc$label else query
       rv$geom_type <- "Point"
+      rv$has_user_selection <- TRUE
       
       leafletProxy("map", session = session) %>%
         clearGroup("selection") %>%
@@ -196,6 +203,7 @@ mapModuleServer <- function(id) {
       rv$lon <- input$map_click$lng
       rv$label <- "Map click"
       rv$geom_type <- "Point"
+      rv$has_user_selection <- TRUE
       
       leafletProxy("map", session = session) %>%
         clearGroup("selection") %>%
@@ -228,6 +236,7 @@ mapModuleServer <- function(id) {
       rv$lon <- extracted$lon
       rv$geom_type <- extracted$type
       rv$label <- paste(extracted$type, "selection")
+      rv$has_user_selection <- TRUE
       
       leafletProxy("map", session = session) %>%
         clearGroup("selection") %>%
@@ -240,6 +249,36 @@ mapModuleServer <- function(id) {
           group = "selection",
           popup = paste0("Using ", extracted$type, " centroid")
         )
+    })
+    
+    ########################################################
+    # Go-to-plots button:
+    # appears only after user has chosen a location
+    ########################################################
+    output$selection_action_ui <- renderUI({
+      if (!isTRUE(rv$has_user_selection)) {
+        return(NULL)
+      }
+      
+      div(
+        style = "margin-top: 10px; margin-bottom: 4px; text-align: right;",
+        actionButton(
+          inputId = session$ns("confirm_selection"),
+          label = "Go to Risk Plots",
+          class = "btn-primary"
+        )
+      )
+    })
+    
+    ########################################################
+    # Switch to risk plots tab
+    ########################################################
+    observeEvent(input$confirm_selection, {
+      updateTabsetPanel(
+        session = parent_session,
+        inputId = "main_tabs",
+        selected = "Risk Plots"
+      )
     })
     
     ########################################################
