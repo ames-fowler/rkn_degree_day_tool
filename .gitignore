@@ -1,14 +1,15 @@
-<<<<<<< HEAD
 # History files
 .Rhistory
 .Rapp.history
 
-# Session Data files
+# Session data files
 .RData
 .RDataTmp
 
 # User-specific files
 .Ruserdata
+.Rproj.user/
+.Rproj.user
 
 # Example code in package build process
 *-Ex.R
@@ -19,10 +20,7 @@
 # Output files from R CMD check
 /*.Rcheck/
 
-# RStudio files
-.Rproj.user/
-
-# produced vignettes
+# Produced vignettes
 vignettes/*.html
 vignettes/*.pdf
 
@@ -37,20 +35,17 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
-# R Environment Variables
+# R environment variables
 .Renviron
 
 # pkgdown site
 docs/
 
-# translation temp files
+# Translation temp files
 po/*~
 
 # RStudio Connect folder
 rsconnect/
-=======
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
->>>>>>> 7044a1a (inital commit)
+
+# Local Shiny smoke-test logs
+shiny-smoke-*.log

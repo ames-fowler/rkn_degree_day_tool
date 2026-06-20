@@ -14,6 +14,12 @@ earlyBlightPageUI <- function(id) {
 
       h2(class = "page-title", "Early Blight"),
       p(class = "muted-note", "Air-temperature degree-day timing for initial fungicide decisions."),
+      div(
+        class = "model-chip-row",
+        span(class = "model-chip", "Air temperature"),
+        span(class = "model-chip", "Initial spray timing"),
+        span(class = "model-chip", "Observed / provisional / forecast")
+      ),
 
       fluidRow(
         column(
@@ -42,7 +48,19 @@ earlyBlightPageUI <- function(id) {
             h3("Risk"),
             riskTimingSummaryUI(ns("timing")),
             br(),
-            thresholdPlotUI(ns("dd_plot"))
+            tabsetPanel(
+              id = ns("plot_view"),
+              tabPanel(
+                "Risk plot",
+                value = "risk",
+                thresholdPlotUI(ns("dd_plot"))
+              ),
+              tabPanel(
+                "Calendar temperature",
+                value = "calendar_temperature",
+                calendarTemperaturePlotUI(ns("calendar_temp"))
+              )
+            )
           )
         )
       ),
@@ -50,8 +68,9 @@ earlyBlightPageUI <- function(id) {
       tags$details(
         tags$summary("Data sources"),
         p(
-          "CoAgMET mode uses station observations plus gridded projection data ",
-          "at the station coordinates. Map mode uses gridded Open-Meteo air ",
+          "CoAgMET mode uses station observations, Open-Meteo provisional ",
+          "gap-fill through today when station data lag, and Open-Meteo ",
+          "forecast after today. Map mode uses gridded Open-Meteo air ",
           "temperature for the selected point or polygon centroid."
         )
       ),
@@ -134,6 +153,16 @@ earlyBlightPageServer <- function(id,
       )
     })
 
+    location_label <- reactive({
+      if (identical(location_source(), "coagmet")) {
+        req(station())
+        format_station_location_label(station())
+      } else {
+        req(map_location())
+        format_map_location_label(map_location())
+      }
+    })
+
     dd_data <- eventReactive(refresh_trigger(), {
       req(start_date())
       req(base_temp())
@@ -173,7 +202,79 @@ earlyBlightPageServer <- function(id,
       "dd_plot",
       dd_data = dd_data,
       thresholds = thresholds,
-      plot_title = reactive("Early Blight Cumulative Degree Days from Planting")
+      plot_title = reactive(paste("Early Blight Cumulative Degree Days -", location_label()))
+    )
+
+    temperature_context <- reactive({
+      if (identical(location_source(), "coagmet")) {
+        req(station())
+
+        list(
+          lat = as.numeric(station()$latitude[[1]]),
+          lon = as.numeric(station()$longitude[[1]]),
+          kind = "air",
+          measure = "air_minmax_mean"
+        )
+      } else {
+        req(map_location())
+
+        list(
+          lat = map_location()$lat,
+          lon = map_location()$lon,
+          kind = "air",
+          measure = "air_minmax_mean"
+        )
+      }
+    })
+
+    calendar_current_daily <- eventReactive(refresh_trigger(), {
+      req(temperature_context())
+      ctx <- temperature_context()
+      year_start <- as.Date(paste0(format(Sys.Date(), "%Y"), "-01-01"))
+
+      temps <- if (identical(location_source(), "coagmet")) {
+        req(station())
+        fetch_coagmet_with_projection(
+          station_row = station(),
+          planting_date = year_start,
+          measure = "air_minmax_mean",
+          forecast_days = 1
+        )
+      } else {
+        fetch_openmeteo_air_timeseries(
+          lat = ctx$lat,
+          lon = ctx$lon,
+          planting_date = year_start,
+          forecast_days = 1
+        )
+      }
+
+      build_daily_temperature(temps, start_date = year_start) %>%
+        filter(date <= Sys.Date())
+    }, ignoreNULL = FALSE)
+
+    calendar_normals <- eventReactive(refresh_trigger(), {
+      req(temperature_context())
+      ctx <- temperature_context()
+
+      build_temperature_normals(
+        lat = ctx$lat,
+        lon = ctx$lon,
+        daily_var = archive_daily_variable_for_temperature(ctx$kind, ctx$measure)
+      )
+    }, ignoreNULL = FALSE)
+
+    calendarTemperaturePlotServer(
+      "calendar_temp",
+      current_daily = calendar_current_daily,
+      normals_daily = calendar_normals,
+      planting_date = start_date,
+      plot_title = reactive(paste("Calendar Temperature Context -", location_label())),
+      variable_label = reactive({
+        ctx <- temperature_context()
+        temperature_context_label(ctx$kind, ctx$measure)
+      }),
+      active = reactive(identical(input$plot_view, "calendar_temperature"))
     )
   })
 }

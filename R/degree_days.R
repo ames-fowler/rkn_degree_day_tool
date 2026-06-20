@@ -12,9 +12,11 @@
 #   - datetime
 #   - temp_c
 #   - source
+#   - provider (optional)
 #
 # Expected source values:
 #   - "Observed"
+#   - "Provisional"
 #   - "Forecast"
 ############################################################
 
@@ -49,6 +51,7 @@ calc_daily_dd <- function(mean_temp_c, base_temp = 5) {
 #   data frame with:
 #     - date
 #     - source
+#     - provider
 #     - mean_temp_c
 #     - dd_day
 ############################################################
@@ -69,13 +72,17 @@ build_daily_degree_days <- function(df_hourly, planting_date, base_temp = 5) {
     )
   }
   
+  if (!("provider" %in% names(df_hourly))) {
+    df_hourly$provider <- "Weather API"
+  }
+
   df_hourly %>%
     mutate(
       datetime = as.POSIXct(datetime),
       date = as.Date(datetime)
     ) %>%
-    filter(date >= planting_date) %>%
-    group_by(date, source) %>%
+    filter(date >= planting_date, !is.na(temp_c)) %>%
+    group_by(date, source, provider) %>%
     summarise(
       mean_temp_c = mean(temp_c, na.rm = TRUE),
       .groups = "drop"
@@ -91,10 +98,8 @@ build_daily_degree_days <- function(df_hourly, planting_date, base_temp = 5) {
 #
 # Logic:
 #   1. Build daily DD by source
-#   2. Collapse observed dates into one daily record
-#   3. Collapse forecast dates into one daily record
-#   4. Compute cumulative DD
-#   5. Forecast cumulative DD starts from last observed value
+#   2. Keep source labels visible: Observed, Provisional, Forecast
+#   3. Compute one continuous cumulative DD series in date order
 #
 # Args:
 #   df_hourly      : data frame with datetime, temp_c, source
@@ -105,6 +110,7 @@ build_daily_degree_days <- function(df_hourly, planting_date, base_temp = 5) {
 #   data frame with:
 #     - date
 #     - source
+#     - provider
 #     - mean_temp_c
 #     - dd_day
 #     - cum_dd
@@ -113,79 +119,40 @@ build_daily_degree_days <- function(df_hourly, planting_date, base_temp = 5) {
 build_degree_days <- function(df_hourly, planting_date, base_temp = 5) {
   
   planting_date <- as.Date(planting_date)
-  today_local <- Sys.Date()
-  
   df_daily <- build_daily_degree_days(
     df_hourly = df_hourly,
     planting_date = planting_date,
     base_temp = base_temp
   )
-  
-  ##########################################################
-  # Observed portion
-  ##########################################################
-  observed <- df_daily %>%
-    filter(date <= today_local) %>%
-    group_by(date) %>%
+
+  if (nrow(df_daily) == 0) {
+    return(tibble(
+      date = as.Date(character()),
+      source = character(),
+      provider = character(),
+      mean_temp_c = numeric(),
+      dd_day = numeric(),
+      cum_dd = numeric()
+    ))
+  }
+
+  source_levels <- c("Observed", "Provisional", "Forecast")
+
+  df_daily %>%
+    mutate(
+      source = ifelse(source %in% source_levels, source, "Observed"),
+      source_order = match(source, source_levels)
+    ) %>%
+    group_by(date, source, provider, source_order) %>%
     summarise(
-      source = "Observed",
       mean_temp_c = mean(mean_temp_c, na.rm = TRUE),
       dd_day = mean(dd_day, na.rm = TRUE),
       .groups = "drop"
     ) %>%
-    arrange(date)
-  
-  if (nrow(observed) > 0) {
-    observed <- observed %>%
-      mutate(cum_dd = cumsum(dd_day))
-  } else {
-    observed <- tibble(
-      date = as.Date(character()),
-      source = character(),
-      mean_temp_c = numeric(),
-      dd_day = numeric(),
-      cum_dd = numeric()
-    )
-  }
-  
-  ##########################################################
-  # Forecast portion
-  ##########################################################
-  forecast <- df_daily %>%
-    filter(date > today_local) %>%
-    group_by(date) %>%
-    summarise(
-      source = "Forecast",
-      mean_temp_c = mean(mean_temp_c, na.rm = TRUE),
-      dd_day = mean(dd_day, na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    arrange(date)
-  
-  last_obs_cum_dd <- if (nrow(observed) > 0) {
-    tail(observed$cum_dd, 1)
-  } else {
-    0
-  }
-  
-  if (nrow(forecast) > 0) {
-    forecast <- forecast %>%
-      mutate(cum_dd = last_obs_cum_dd + cumsum(dd_day))
-  } else {
-    forecast <- tibble(
-      date = as.Date(character()),
-      source = character(),
-      mean_temp_c = numeric(),
-      dd_day = numeric(),
-      cum_dd = numeric()
-    )
-  }
-  
-  ##########################################################
-  # Return combined daily table
-  ##########################################################
-  bind_rows(observed, forecast) %>%
-    arrange(date)
+    arrange(date, source_order) %>%
+    distinct(date, .keep_all = TRUE) %>%
+    mutate(cum_dd = cumsum(dd_day)) %>%
+    select(date, source, provider, mean_temp_c, dd_day, cum_dd)
 }
 
 ############################################################

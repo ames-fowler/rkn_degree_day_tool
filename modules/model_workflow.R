@@ -5,61 +5,79 @@
 
 modelWorkflowUI <- function() {
   tagList(
-    h4("1. Choose Crop"),
-    selectInput(
-      "crop",
-      label = NULL,
-      choices = c("Potato" = "potato"),
-      selected = "potato"
+    div(
+      class = "workflow-step",
+      h4("1. Choose Crop"),
+      selectInput(
+        "crop",
+        label = NULL,
+        choices = c("Potato" = "potato"),
+        selected = "potato"
+      )
     ),
 
-    h4("2. Choose Disease or Pest"),
-    selectInput(
-      "model_choice",
-      label = NULL,
-      choices = c(
-        "Root-knot nematode" = "rkn",
-        "Early blight" = "early_blight"
+    div(
+      class = "workflow-step",
+      h4("2. Choose Disease or Pest"),
+      selectInput(
+        "model_choice",
+        label = NULL,
+        choices = c(
+          "Root-knot nematode" = "rkn",
+          "Early blight" = "early_blight"
+        ),
+        selected = "rkn"
       ),
-      selected = "rkn"
     ),
 
-    h4("3. Choose Location Source"),
-    radioButtons(
-      "location_source",
-      label = NULL,
-      choices = c(
-        "CoAgMET station" = "coagmet",
-        "Map point or polygon" = "map"
+    div(
+      class = "workflow-step",
+      h4("3. Choose Location Source"),
+      radioButtons(
+        "location_source",
+        label = NULL,
+        choices = c(
+          "CoAgMET station" = "coagmet",
+          "Map point or polygon" = "map"
+        ),
+        selected = "coagmet"
       ),
-      selected = "coagmet"
     ),
 
-    h4("4. Choose Location"),
-    conditionalPanel(
-      condition = "input.location_source == 'coagmet'",
-      helpText("Select a station on the model page.")
-    ),
-    conditionalPanel(
-      condition = "input.location_source == 'map'",
-      helpText("Search, click, or draw on the model page.")
-    ),
-
-    h4("5. Enter Start Date"),
-    dateInput(
-      "start_date",
-      label = NULL,
-      value = Sys.Date() - 30
+    div(
+      class = "workflow-step",
+      h4("4. Choose Location"),
+      conditionalPanel(
+        condition = "input.location_source == 'coagmet'",
+        helpText("Select a station on the model page.")
+      ),
+      conditionalPanel(
+        condition = "input.location_source == 'map'",
+        helpText("Search, click, or draw on the model page.")
+      )
     ),
 
-    h4("6. View Risk"),
-    actionButton(
-      "refresh_model",
-      "Refresh Risk",
-      class = "btn-primary",
-      width = "100%"
+    div(
+      class = "workflow-step",
+      h4("5. Enter Start Date"),
+      dateInput(
+        "start_date",
+        label = NULL,
+        value = Sys.Date() - 30
+      )
     ),
-    helpText("Refresh after changing location, date, or advanced parameters."),
+
+    div(
+      class = "workflow-step",
+      h4("6. View Risk"),
+      actionButton(
+        "refresh_model",
+        "Refresh Risk",
+        class = "btn-primary",
+        width = "100%"
+      ),
+      helpText("Refresh after changing location, date, or advanced parameters.")
+    ),
 
     hr(),
 

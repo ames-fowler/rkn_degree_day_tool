@@ -51,7 +51,10 @@ validate_soil_depth_var <- function(depth_var) {
 # into the standard app data frame
 ############################################################
 
-parse_openmeteo_hourly <- function(js, depth_var, source_label) {
+parse_openmeteo_hourly <- function(js,
+                                   depth_var,
+                                   source_label,
+                                   provider = "Open-Meteo") {
   if (is.null(js$hourly)) {
     stop("Open-Meteo response is missing 'hourly' data.")
   }
@@ -83,7 +86,8 @@ parse_openmeteo_hourly <- function(js, depth_var, source_label) {
       truncated = 1
     ),
     temp_c = as.numeric(vals),
-    source = source_label
+    source = source_label,
+    provider = provider
   )
 }
 ############################################################
@@ -104,7 +108,8 @@ fetch_openmeteo_history <- function(lat,
                                     lon,
                                     start_date,
                                     end_date,
-                                    depth_var = "soil_temperature_6cm") {
+                                    depth_var = "soil_temperature_6cm",
+                                    source_label = "Observed") {
   
   depth_var <- validate_soil_depth_var(depth_var)
   
@@ -134,7 +139,7 @@ fetch_openmeteo_history <- function(lat,
   parse_openmeteo_hourly(
     js = js,
     depth_var = depth_var,
-    source_label = "Observed"
+    source_label = source_label
   )
 }
 
@@ -226,7 +231,7 @@ fetch_openmeteo_timeseries <- function(lat,
     forecast_days = forecast_days
   )
   
-  bind_rows(hist, fcst) %>%
+  bind_rows(hist, forecast_rows_after(fcst)) %>%
     arrange(datetime) %>%
     distinct(datetime, source, .keep_all = TRUE)
 }
@@ -238,7 +243,8 @@ fetch_openmeteo_timeseries <- function(lat,
 fetch_openmeteo_air_history <- function(lat,
                                         lon,
                                         start_date,
-                                        end_date) {
+                                        end_date,
+                                        source_label = "Observed") {
   start_date <- as.character(as.Date(start_date))
   end_date   <- as.character(as.Date(end_date))
 
@@ -253,7 +259,7 @@ fetch_openmeteo_air_history <- function(lat,
     )
 
   js <- perform_json_request(req)
-  parse_openmeteo_air_hourly(js, source_label = "Observed")
+  parse_openmeteo_air_hourly(js, source_label = source_label)
 }
 
 fetch_openmeteo_air_forecast <- function(lat,
@@ -282,7 +288,9 @@ fetch_openmeteo_air_forecast <- function(lat,
   parse_openmeteo_air_hourly(js, source_label = "Forecast")
 }
 
-parse_openmeteo_air_hourly <- function(js, source_label) {
+parse_openmeteo_air_hourly <- function(js,
+                                       source_label,
+                                       provider = "Open-Meteo") {
   if (is.null(js$hourly) || is.null(js$hourly$time) || is.null(js$hourly$temperature_2m)) {
     stop("Open-Meteo response is missing hourly air temperature data.")
   }
@@ -298,7 +306,8 @@ parse_openmeteo_air_hourly <- function(js, source_label) {
       truncated = 1
     ),
     temp_c = as.numeric(js$hourly$temperature_2m),
-    source = source_label
+    source = source_label,
+    provider = provider
   )
 }
 
@@ -322,7 +331,7 @@ fetch_openmeteo_air_timeseries <- function(lat,
     forecast_days = forecast_days
   )
 
-  bind_rows(hist, fcst) %>%
+  bind_rows(hist, forecast_rows_after(fcst)) %>%
     arrange(datetime) %>%
     distinct(datetime, source, .keep_all = TRUE)
 }
@@ -334,6 +343,6 @@ forecast_rows_after <- function(df, reference_date = Sys.Date()) {
 
   df %>%
     mutate(date = as.Date(datetime)) %>%
-    filter(date > as.Date(reference_date)) %>%
-    select(datetime, temp_c, source)
+    filter(date > as.Date(reference_date), !is.na(temp_c)) %>%
+    select(any_of(c("datetime", "temp_c", "source", "provider")))
 }

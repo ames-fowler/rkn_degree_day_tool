@@ -64,6 +64,7 @@ coagmetStationServer <- function(id, initial_station = "ftc01") {
 
     output$station_map <- renderLeaflet({
       station <- selected_station()
+      aes_sites <- read_csu_aes_sites()
 
       leaflet(stations) %>%
         addProviderTiles(providers$CartoDB.Positron) %>%
@@ -75,6 +76,22 @@ coagmetStationServer <- function(id, initial_station = "ftc01") {
           radius = 5,
           stroke = TRUE,
           fillOpacity = 0.8
+        ) %>%
+        addCircleMarkers(
+          data = aes_sites,
+          lng = ~longitude,
+          lat = ~latitude,
+          group = "CSU AES sites",
+          radius = 6,
+          color = "#1e4d2b",
+          fillColor = "#f1b82d",
+          fillOpacity = 0.9,
+          stroke = TRUE,
+          popup = ~paste0(site_name, "<br>", round(latitude, 5), ", ", round(longitude, 5))
+        ) %>%
+        addLayersControl(
+          overlayGroups = c("CSU AES sites", "selected_station"),
+          options = layersControlOptions(collapsed = FALSE)
         ) %>%
         setView(lng = station$longitude[[1]], lat = station$latitude[[1]], zoom = 7)
     })

@@ -5,8 +5,6 @@ account: ames-fowler-soil-water
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16830385
-bundleId: 11670666
+bundleId: 12154613
 url: https://ames-fowler-soil-water.shinyapps.io/rkn_degree_day_tool/
 version: 1
-asMultiple: FALSE
-asStatic: FALSE

@@ -10,6 +10,12 @@ rootKnotPageUI <- function() {
 
       h2(class = "page-title", "Root-Knot Nematode"),
       p(class = "muted-note", "Soil-temperature degree-day risk for Meloidogyne spp."),
+      div(
+        class = "model-chip-row",
+        span(class = "model-chip", "Soil temperature"),
+        span(class = "model-chip", "CoAgMET + gridded weather"),
+        span(class = "model-chip", "Observed / provisional / forecast")
+      ),
 
       fluidRow(
         column(
@@ -37,7 +43,19 @@ rootKnotPageUI <- function() {
             h3("Risk"),
             riskTimingSummaryUI("rkn_timing"),
             br(),
-            degreeDayPlotUI("dd_plot")
+            tabsetPanel(
+              id = "rkn_plot_view",
+              tabPanel(
+                "Risk plot",
+                value = "risk",
+                degreeDayPlotUI("dd_plot")
+              ),
+              tabPanel(
+                "Calendar temperature",
+                value = "calendar_temperature",
+                calendarTemperaturePlotUI("calendar_temp")
+              )
+            )
           )
         )
       ),
@@ -46,9 +64,10 @@ rootKnotPageUI <- function() {
         tags$summary("Temperature data"),
         p(
           class = "muted-note",
-          "CoAgMET mode uses station observations plus gridded projection data ",
-          "at the station coordinates. Map mode uses gridded soil temperature ",
-          "for the selected point or polygon centroid."
+          "CoAgMET mode uses station observations, Open-Meteo provisional ",
+          "gap-fill through today when station data lag, and Open-Meteo ",
+          "forecast after today. Map mode uses gridded soil temperature for ",
+          "the selected point or polygon centroid."
         ),
         temperaturePlotUI("temp_plot")
       ),

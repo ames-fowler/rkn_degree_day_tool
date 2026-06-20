@@ -35,12 +35,12 @@ aboutPageUI <- function(id = NULL) {
           tags$tr(
             tags$td("Root-Knot Nematode"),
             tags$td("Soil-temperature degree-day risk timing for Meloidogyne spp."),
-            tags$td("CoAgMET station observations with gridded projection, or gridded map-point soil temperature")
+            tags$td("CoAgMET observations, gridded provisional gap-fill, gridded forecast, or gridded map-point soil temperature")
           ),
           tags$tr(
             tags$td("Early Blight"),
             tags$td("Franc et al. 1988 air-temperature day-degree thresholds for potato early blight"),
-            tags$td("CoAgMET station observations with gridded projection, or gridded map-point air temperature")
+            tags$td("CoAgMET observations, gridded provisional gap-fill, gridded forecast, or gridded map-point air temperature")
           )
         )
       ),

@@ -20,6 +20,7 @@ summarize_threshold_timing <- function(df_dd, thresholds, reference_date = Sys.D
 
   current <- df_dd %>%
     arrange(date) %>%
+    filter(date <= as.Date(reference_date)) %>%
     filter(!is.na(cum_dd)) %>%
     slice_tail(n = 1)
 

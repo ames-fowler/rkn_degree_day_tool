@@ -89,35 +89,33 @@ mapModuleServer <- function(id,
       has_user_selection = FALSE
     )
 
-    initial_location <- default_location
-
-    if (!is.null(shared_state) && !is.null(shared_state$lat) && !is.null(shared_state$lon)) {
-      initial_location <- list(
-        lat = shared_state$lat,
-        lon = shared_state$lon,
-        label = if (!is.null(shared_state$label)) shared_state$label else default_location$label,
-        geom_type = if (!is.null(shared_state$geom_type)) shared_state$geom_type else default_location$geom_type,
-        has_user_selection = isTRUE(shared_state$has_user_selection)
-      )
-    }
-    
     ########################################################
     # Reactive values to store current selected location
     ########################################################
     rv <- reactiveValues(
-      lat = initial_location$lat,
-      lon = initial_location$lon,
-      label = initial_location$label,
-      geom_type = initial_location$geom_type,
-      has_user_selection = initial_location$has_user_selection
+      lat = default_location$lat,
+      lon = default_location$lon,
+      label = default_location$label,
+      geom_type = default_location$geom_type,
+      has_user_selection = default_location$has_user_selection,
+      draw_feature = NULL,
+      map_lat = default_location$lat,
+      map_lon = default_location$lon,
+      map_zoom = 9
     )
 
-    set_location <- function(lat, lon, label, geom_type, has_user_selection = TRUE) {
+    set_location <- function(lat,
+                             lon,
+                             label,
+                             geom_type,
+                             has_user_selection = TRUE,
+                             draw_feature = NULL) {
       rv$lat <- lat
       rv$lon <- lon
       rv$label <- label
       rv$geom_type <- geom_type
       rv$has_user_selection <- has_user_selection
+      rv$draw_feature <- draw_feature
 
       if (!is.null(shared_state)) {
         shared_state$lat <- lat
@@ -125,7 +123,35 @@ mapModuleServer <- function(id,
         shared_state$label <- label
         shared_state$geom_type <- geom_type
         shared_state$has_user_selection <- has_user_selection
+        shared_state$draw_feature <- draw_feature
       }
+    }
+
+    selected_location_icon <- leaflet::makeAwesomeIcon(
+      icon = "map-marker",
+      library = "fa",
+      markerColor = "darkgreen",
+      iconColor = "white"
+    )
+
+    draw_persisted_boundary <- function() {
+      proxy <- leafletProxy("map", session = session) %>%
+        clearGroup("drawn")
+
+      if (!is.null(rv$draw_feature)) {
+        proxy <- proxy %>%
+          addGeoJSON(
+            rv$draw_feature,
+            group = "drawn",
+            options = pathOptions(
+              color = "#1e4d2b",
+              weight = 2,
+              fillOpacity = 0.10
+            )
+          )
+      }
+
+      invisible(proxy)
     }
 
     draw_selected_location <- function(zoom = NULL, clear_drawn = FALSE) {
@@ -141,10 +167,11 @@ mapModuleServer <- function(id,
       }
 
       proxy %>%
-        addMarkers(
+        addAwesomeMarkers(
           lng = rv$lon,
           lat = rv$lat,
           group = "selection",
+          icon = selected_location_icon,
           popup = rv$label
         )
     }
@@ -153,9 +180,11 @@ mapModuleServer <- function(id,
     # Initial map render
     ########################################################
     output$map <- renderLeaflet({
+      aes_sites <- read_csu_aes_sites()
+
       leaflet() %>%
         addProviderTiles(providers$CartoDB.Positron) %>%
-        setView(lng = rv$lon, lat = rv$lat, zoom = 9) %>%
+        setView(lng = rv$map_lon, lat = rv$map_lat, zoom = rv$map_zoom) %>%
         addDrawToolbar(
           targetGroup = "drawn",
           polylineOptions = FALSE,
@@ -167,13 +196,26 @@ mapModuleServer <- function(id,
           editOptions = editToolbarOptions()
         ) %>%
         addLayersControl(
-          overlayGroups = c("drawn", "selection"),
+          overlayGroups = c("drawn", "selection", "CSU AES sites"),
           options = layersControlOptions(collapsed = FALSE)
         ) %>%
-        addMarkers(
+        addCircleMarkers(
+          data = aes_sites,
+          lng = ~longitude,
+          lat = ~latitude,
+          group = "CSU AES sites",
+          radius = 6,
+          color = "#1e4d2b",
+          fillColor = "#f1b82d",
+          fillOpacity = 0.9,
+          stroke = TRUE,
+          popup = ~paste0(site_name, "<br>", round(latitude, 5), ", ", round(longitude, 5))
+        ) %>%
+        addAwesomeMarkers(
           lng = rv$lon,
           lat = rv$lat,
           group = "selection",
+          icon = selected_location_icon,
           popup = rv$label
         )
     })
@@ -214,7 +256,8 @@ mapModuleServer <- function(id,
         lat = loc$lat,
         lon = loc$lon,
         label = if (!is.null(loc$label)) loc$label else query,
-        geom_type = "Point"
+        geom_type = "Point",
+        draw_feature = NULL
       )
 
       draw_selected_location(zoom = 11, clear_drawn = TRUE)
@@ -229,7 +272,8 @@ mapModuleServer <- function(id,
         lat = input$map_click$lat,
         lon = input$map_click$lng,
         label = "Map click",
-        geom_type = "Point"
+        geom_type = "Point",
+        draw_feature = NULL
       )
 
       draw_selected_location()
@@ -256,21 +300,48 @@ mapModuleServer <- function(id,
         lat = extracted$lat,
         lon = extracted$lon,
         label = paste(extracted$type, "selection"),
-        geom_type = extracted$type
+        geom_type = extracted$type,
+        draw_feature = feat
       )
       
       leafletProxy("map", session = session) %>%
         clearGroup("selection") %>%
-        addCircleMarkers(
+        clearGroup("drawn") %>%
+        addGeoJSON(
+          feat,
+          group = "drawn",
+          options = pathOptions(
+            color = "#1e4d2b",
+            weight = 2,
+            fillOpacity = 0.10
+          )
+        ) %>%
+        addAwesomeMarkers(
           lng = rv$lon,
           lat = rv$lat,
-          radius = 7,
-          stroke = TRUE,
-          fillOpacity = 0.9,
+          icon = selected_location_icon,
           group = "selection",
           popup = paste0("Using ", extracted$type, " centroid")
         )
     })
+
+    observeEvent(input$map_center, {
+      rv$map_lat <- input$map_center$lat
+      rv$map_lon <- input$map_center$lng
+
+      if (!is.null(shared_state)) {
+        shared_state$map_lat <- rv$map_lat
+        shared_state$map_lon <- rv$map_lon
+      }
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$map_zoom, {
+      rv$map_zoom <- input$map_zoom
+
+      if (!is.null(shared_state)) {
+        shared_state$map_zoom <- rv$map_zoom
+      }
+    }, ignoreInit = TRUE)
 
     if (!is.null(shared_state)) {
       observe({
@@ -279,7 +350,8 @@ mapModuleServer <- function(id,
         changed <- !isTRUE(all.equal(rv$lat, shared_state$lat)) ||
           !isTRUE(all.equal(rv$lon, shared_state$lon)) ||
           !identical(rv$label, shared_state$label) ||
-          !identical(rv$geom_type, shared_state$geom_type)
+          !identical(rv$geom_type, shared_state$geom_type) ||
+          !identical(rv$draw_feature, shared_state$draw_feature)
 
         if (!isTRUE(changed)) {
           return()
@@ -290,9 +362,30 @@ mapModuleServer <- function(id,
         rv$label <- shared_state$label
         rv$geom_type <- shared_state$geom_type
         rv$has_user_selection <- isTRUE(shared_state$has_user_selection)
+        rv$draw_feature <- shared_state$draw_feature
 
         updateTextInput(session, "location_query", value = rv$label)
+        draw_persisted_boundary()
         draw_selected_location()
+      })
+
+      observe({
+        req(shared_state$map_lat, shared_state$map_lon, shared_state$map_zoom)
+
+        map_changed <- !isTRUE(all.equal(rv$map_lat, shared_state$map_lat)) ||
+          !isTRUE(all.equal(rv$map_lon, shared_state$map_lon)) ||
+          !identical(rv$map_zoom, shared_state$map_zoom)
+
+        if (!isTRUE(map_changed)) {
+          return()
+        }
+
+        rv$map_lat <- shared_state$map_lat
+        rv$map_lon <- shared_state$map_lon
+        rv$map_zoom <- shared_state$map_zoom
+
+        leafletProxy("map", session = session) %>%
+          setView(lng = rv$map_lon, lat = rv$map_lat, zoom = rv$map_zoom)
       })
     }
     
@@ -324,6 +417,7 @@ mapModuleServer <- function(id,
         inputId = "main_tabs",
         selected = target_tab
       )
+      session$sendCustomMessage("clickElement", "refresh_model")
     })
     
     ########################################################

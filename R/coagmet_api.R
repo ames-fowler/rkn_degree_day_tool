@@ -82,7 +82,8 @@ coagmet_daily_to_temperature <- function(payload,
     stop("CoAgMET daily payload is missing time.")
   }
 
-  dates <- as.Date(payload$time)
+  time_values <- as.character(payload$time)
+  dates <- suppressWarnings(as.Date(time_values))
 
   temp_c <- switch(
     measure,
@@ -98,12 +99,16 @@ coagmet_daily_to_temperature <- function(payload,
   )
 
   tibble(
-    datetime = as.POSIXct(paste(dates, "12:00:00"), tz = "MST"),
+    date = dates,
     temp_c = temp_c,
     source = "Observed",
-    date = dates
+    provider = "CoAgMET"
   ) %>%
-    filter(!is.na(datetime), !is.na(temp_c))
+    filter(!is.na(date), !is.na(temp_c)) %>%
+    mutate(
+      datetime = as.POSIXct(date, tz = "Etc/GMT+7") + 12 * 60 * 60
+    ) %>%
+    select(datetime, temp_c, source, provider, date)
 }
 
 fetch_coagmet_temperature_timeseries <- function(station_id,
@@ -127,6 +132,48 @@ coagmet_measure_to_projection_depth <- function(measure) {
     air_minmax_mean = NA_character_,
     stop("Unsupported CoAgMET measure for projection: ", measure)
   )
+}
+
+fetch_openmeteo_provisional_for_station <- function(lat,
+                                                    lon,
+                                                    start_date,
+                                                    end_date,
+                                                    measure) {
+  start_date <- as.Date(start_date)
+  end_date <- as.Date(end_date)
+
+  if (is.na(start_date) || is.na(end_date) || start_date > end_date) {
+    return(tibble(
+      datetime = as.POSIXct(character()),
+      temp_c = numeric(),
+      source = character(),
+      provider = character()
+    ))
+  }
+
+  provisional <- if (identical(measure, "air_minmax_mean")) {
+    fetch_openmeteo_air_history(
+      lat = lat,
+      lon = lon,
+      start_date = start_date,
+      end_date = end_date,
+      source_label = "Provisional"
+    )
+  } else {
+    fetch_openmeteo_history(
+      lat = lat,
+      lon = lon,
+      start_date = start_date,
+      end_date = end_date,
+      depth_var = coagmet_measure_to_projection_depth(measure),
+      source_label = "Provisional"
+    )
+  }
+
+  provisional %>%
+    mutate(date = as.Date(datetime)) %>%
+    filter(date >= start_date, date <= end_date, !is.na(temp_c)) %>%
+    select(datetime, temp_c, source, provider)
 }
 
 fetch_coagmet_with_projection <- function(station_row,
@@ -161,6 +208,23 @@ fetch_coagmet_with_projection <- function(station_row,
     measure = measure
   )
 
+  latest_observed_date <- if (nrow(observed) > 0) {
+    max(as.Date(observed$datetime), na.rm = TRUE)
+  } else {
+    as.Date(planting_date) - 1
+  }
+
+  provisional_start_date <- max(as.Date(planting_date), latest_observed_date + 1)
+  provisional_end_date <- Sys.Date()
+
+  provisional <- fetch_openmeteo_provisional_for_station(
+    lat = lat,
+    lon = lon,
+    start_date = provisional_start_date,
+    end_date = provisional_end_date,
+    measure = measure
+  )
+
   projection <- if (identical(measure, "air_minmax_mean")) {
     fetch_openmeteo_air_forecast(
       lat = lat,
@@ -177,9 +241,11 @@ fetch_coagmet_with_projection <- function(station_row,
   }
 
   bind_rows(
-    observed %>% select(datetime, temp_c, source),
+    observed %>% select(datetime, temp_c, source, provider),
+    provisional %>% select(datetime, temp_c, source, provider),
     forecast_rows_after(projection)
   ) %>%
+    filter(!is.na(datetime), !is.na(temp_c)) %>%
     arrange(datetime)
 }
 
