@@ -127,11 +127,9 @@ fetch_openmeteo_history <- function(lat,
       end_date = end_date,
       hourly = depth_var,
       timezone = "auto"
-    ) %>%
-    req_user_agent("RKN-degree-day-Shiny-app/0.1")
-  
-  resp <- req %>% req_perform()
-  js <- resp %>% resp_body_json(simplifyVector = TRUE)
+    )
+
+  js <- perform_json_request(req)
   
   parse_openmeteo_hourly(
     js = js,
@@ -178,11 +176,9 @@ fetch_openmeteo_forecast <- function(lat,
       hourly = depth_var,
       timezone = "auto",
       forecast_days = forecast_days
-    ) %>%
-    req_user_agent("RKN-degree-day-Shiny-app/0.1")
-  
-  resp <- req %>% req_perform()
-  js <- resp %>% resp_body_json(simplifyVector = TRUE)
+    )
+
+  js <- perform_json_request(req)
   
   parse_openmeteo_hourly(
     js = js,
@@ -233,4 +229,111 @@ fetch_openmeteo_timeseries <- function(lat,
   bind_rows(hist, fcst) %>%
     arrange(datetime) %>%
     distinct(datetime, source, .keep_all = TRUE)
+}
+
+############################################################
+# Fetch gridded Open-Meteo air temperature for early blight
+############################################################
+
+fetch_openmeteo_air_history <- function(lat,
+                                        lon,
+                                        start_date,
+                                        end_date) {
+  start_date <- as.character(as.Date(start_date))
+  end_date   <- as.character(as.Date(end_date))
+
+  req <- request("https://historical-forecast-api.open-meteo.com/v1/forecast") %>%
+    req_url_query(
+      latitude = lat,
+      longitude = lon,
+      start_date = start_date,
+      end_date = end_date,
+      hourly = "temperature_2m",
+      timezone = "auto"
+    )
+
+  js <- perform_json_request(req)
+  parse_openmeteo_air_hourly(js, source_label = "Observed")
+}
+
+fetch_openmeteo_air_forecast <- function(lat,
+                                         lon,
+                                         forecast_days = 14) {
+  forecast_days <- as.integer(forecast_days)
+
+  if (is.na(forecast_days) || forecast_days < 1) {
+    stop("forecast_days must be a positive integer.")
+  }
+
+  if (forecast_days > 16) {
+    stop("forecast_days cannot exceed 16 for the Open-Meteo forecast endpoint.")
+  }
+
+  req <- request("https://api.open-meteo.com/v1/forecast") %>%
+    req_url_query(
+      latitude = lat,
+      longitude = lon,
+      hourly = "temperature_2m",
+      timezone = "auto",
+      forecast_days = forecast_days
+    )
+
+  js <- perform_json_request(req)
+  parse_openmeteo_air_hourly(js, source_label = "Forecast")
+}
+
+parse_openmeteo_air_hourly <- function(js, source_label) {
+  if (is.null(js$hourly) || is.null(js$hourly$time) || is.null(js$hourly$temperature_2m)) {
+    stop("Open-Meteo response is missing hourly air temperature data.")
+  }
+
+  tz_out <- if (!is.null(js$timezone)) js$timezone else "UTC"
+  time_chr <- gsub("T", " ", js$hourly$time, fixed = TRUE)
+
+  tibble(
+    datetime = lubridate::ymd_hms(
+      time_chr,
+      tz = tz_out,
+      quiet = TRUE,
+      truncated = 1
+    ),
+    temp_c = as.numeric(js$hourly$temperature_2m),
+    source = source_label
+  )
+}
+
+fetch_openmeteo_air_timeseries <- function(lat,
+                                           lon,
+                                           planting_date,
+                                           forecast_days = 14) {
+  planting_date <- as.character(as.Date(planting_date))
+  today_date <- as.character(Sys.Date())
+
+  hist <- fetch_openmeteo_air_history(
+    lat = lat,
+    lon = lon,
+    start_date = planting_date,
+    end_date = today_date
+  )
+
+  fcst <- fetch_openmeteo_air_forecast(
+    lat = lat,
+    lon = lon,
+    forecast_days = forecast_days
+  )
+
+  bind_rows(hist, fcst) %>%
+    arrange(datetime) %>%
+    distinct(datetime, source, .keep_all = TRUE)
+}
+
+forecast_rows_after <- function(df, reference_date = Sys.Date()) {
+  if (!all(c("datetime", "temp_c", "source") %in% names(df))) {
+    stop("forecast_rows_after() requires columns: datetime, temp_c, source")
+  }
+
+  df %>%
+    mutate(date = as.Date(datetime)) %>%
+    filter(date > as.Date(reference_date)) %>%
+    select(datetime, temp_c, source)
 }

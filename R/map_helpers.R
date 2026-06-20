@@ -83,9 +83,11 @@ geocode_nominatim <- function(query) {
   )
   
   resp <- request(url) %>%
-    req_user_agent("RKN-degree-day-Shiny-app/0.1") %>%
+    req_user_agent("Potato-predictive-tools-Shiny-app/0.3") %>%
+    req_timeout(20) %>%
+    req_retry(max_tries = 3) %>%
     req_perform()
-  
+
   txt <- resp_body_string(resp)
   js <- fromJSON(txt, simplifyDataFrame = TRUE)
   

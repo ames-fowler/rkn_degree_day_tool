@@ -1,0 +1,55 @@
+Loading required package: shiny
+Warning: package 'shiny' was built under R version 4.5.3
+Warning: package 'httr2' was built under R version 4.5.3
+Warning: package 'dplyr' was built under R version 4.5.3
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+Warning: package 'lubridate' was built under R version 4.5.3
+
+Attaching package: 'lubridate'
+
+The following objects are masked from 'package:base':
+
+    date, intersect, setdiff, union
+
+
+Attaching package: 'jsonlite'
+
+The following object is masked from 'package:shiny':
+
+    validate
+
+Warning: package 'sf' was built under R version 4.5.3
+Linking to GEOS 3.14.1, GDAL 3.12.1, PROJ 9.7.1; sf_use_s2() is TRUE
+Warning: package 'leaflet' was built under R version 4.5.3
+Warning: package 'plotly' was built under R version 4.5.3
+Loading required package: ggplot2
+Warning: package 'ggplot2' was built under R version 4.5.3
+
+Attaching package: 'plotly'
+
+The following object is masked from 'package:ggplot2':
+
+    last_plot
+
+The following object is masked from 'package:stats':
+
+    filter
+
+The following object is masked from 'package:graphics':
+
+    layout
+
+here() starts at C:/projects/git/fun/rkn_degree_day_tool
+Warning: package 'leaflet.extras' was built under R version 4.5.3
+
+Listening on http://0.0.0.0:3839

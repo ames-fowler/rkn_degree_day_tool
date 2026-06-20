@@ -29,22 +29,6 @@ mapModuleUI <- function(id) {
   ns <- NS(id)
   
   tagList(
-    
-    div(
-      style = "max-width: 900px; margin: auto; line-height: 1.6;",
-      
-      h3("How to Use This Tool"),
-      
-      tags$ol(
-        tags$li("Select a location on the map using search, click, or polygon drawing."),
-        tags$li("Choose the planting date for the field."),
-        tags$li("Adjust the base temperature or risk thresholds if needed."),
-        tags$li("View predicted infection timing and risk progression on the Risk Plots tab.")
-      ),
-      
-      hr()
-    ),
-    
     div(
       style = "display: flex; gap: 10px; align-items: flex-end;",
       
@@ -69,30 +53,20 @@ mapModuleUI <- function(id) {
     ),
     
     tags$p(
-      style = "color:#555; font-size:0.9em;",
-      "You can also click the map to drop a pin or draw a polygon or rectangle. ",
-      "Polygons and rectangles use the centroid."
+      class = "muted-note",
+      "Search, click, or draw a polygon. Polygon and rectangle selections use the centroid."
     ),
     
-    leafletOutput(ns("map"), height = "350px"),
+    leafletOutput(ns("map"), height = "320px"),
     
     uiOutput(ns("selection_action_ui")),
     
-    tags$div(
-      style = "margin-top: 10px;",
-      strong("Selected location")
-    ),
-    
-    tags$pre(
-      style = paste(
-        "font-size: 12px;",
-        "padding: 8px;",
-        "margin-top: 6px;",
-        "background: #f8f9fa;",
-        "border: 1px solid #ddd;",
-        "border-radius: 4px;"
-      ),
-      textOutput(ns("selected_coords"), container = span)
+    tags$details(
+      tags$summary("Selected location details"),
+      tags$pre(
+        class = "compact-pre",
+        textOutput(ns("selected_coords"), container = span)
+      )
     )
   )
 }
@@ -101,19 +75,79 @@ mapModuleUI <- function(id) {
 # SERVER
 ############################################################
 
-mapModuleServer <- function(id, parent_session) {
+mapModuleServer <- function(id,
+                            parent_session,
+                            target_tab = "rkn",
+                            shared_state = NULL) {
   moduleServer(id, function(input, output, session) {
-    
-    ########################################################
-    # Reactive values to store current selected location
-    ########################################################
-    rv <- reactiveValues(
+
+    default_location <- list(
       lat = 40.5853,
       lon = -105.0844,
       label = "Fort Collins, CO",
       geom_type = "Point",
       has_user_selection = FALSE
     )
+
+    initial_location <- default_location
+
+    if (!is.null(shared_state) && !is.null(shared_state$lat) && !is.null(shared_state$lon)) {
+      initial_location <- list(
+        lat = shared_state$lat,
+        lon = shared_state$lon,
+        label = if (!is.null(shared_state$label)) shared_state$label else default_location$label,
+        geom_type = if (!is.null(shared_state$geom_type)) shared_state$geom_type else default_location$geom_type,
+        has_user_selection = isTRUE(shared_state$has_user_selection)
+      )
+    }
+    
+    ########################################################
+    # Reactive values to store current selected location
+    ########################################################
+    rv <- reactiveValues(
+      lat = initial_location$lat,
+      lon = initial_location$lon,
+      label = initial_location$label,
+      geom_type = initial_location$geom_type,
+      has_user_selection = initial_location$has_user_selection
+    )
+
+    set_location <- function(lat, lon, label, geom_type, has_user_selection = TRUE) {
+      rv$lat <- lat
+      rv$lon <- lon
+      rv$label <- label
+      rv$geom_type <- geom_type
+      rv$has_user_selection <- has_user_selection
+
+      if (!is.null(shared_state)) {
+        shared_state$lat <- lat
+        shared_state$lon <- lon
+        shared_state$label <- label
+        shared_state$geom_type <- geom_type
+        shared_state$has_user_selection <- has_user_selection
+      }
+    }
+
+    draw_selected_location <- function(zoom = NULL, clear_drawn = FALSE) {
+      proxy <- leafletProxy("map", session = session) %>%
+        clearGroup("selection")
+
+      if (isTRUE(clear_drawn)) {
+        proxy <- proxy %>% clearGroup("drawn")
+      }
+
+      if (!is.null(zoom)) {
+        proxy <- proxy %>% setView(lng = rv$lon, lat = rv$lat, zoom = zoom)
+      }
+
+      proxy %>%
+        addMarkers(
+          lng = rv$lon,
+          lat = rv$lat,
+          group = "selection",
+          popup = rv$label
+        )
+    }
     
     ########################################################
     # Initial map render
@@ -176,22 +210,14 @@ mapModuleServer <- function(id, parent_session) {
         shiny::need(!is.null(loc), "Location not found. Try a clearer address or lat,lon.")
       )
       
-      rv$lat <- loc$lat
-      rv$lon <- loc$lon
-      rv$label <- if (!is.null(loc$label)) loc$label else query
-      rv$geom_type <- "Point"
-      rv$has_user_selection <- TRUE
-      
-      leafletProxy("map", session = session) %>%
-        clearGroup("selection") %>%
-        clearGroup("drawn") %>%
-        setView(lng = rv$lon, lat = rv$lat, zoom = 11) %>%
-        addMarkers(
-          lng = rv$lon,
-          lat = rv$lat,
-          group = "selection",
-          popup = rv$label
-        )
+      set_location(
+        lat = loc$lat,
+        lon = loc$lon,
+        label = if (!is.null(loc$label)) loc$label else query,
+        geom_type = "Point"
+      )
+
+      draw_selected_location(zoom = 11, clear_drawn = TRUE)
     })
     
     ########################################################
@@ -199,20 +225,14 @@ mapModuleServer <- function(id, parent_session) {
     # use clicked point as selected location
     ########################################################
     observeEvent(input$map_click, {
-      rv$lat <- input$map_click$lat
-      rv$lon <- input$map_click$lng
-      rv$label <- "Map click"
-      rv$geom_type <- "Point"
-      rv$has_user_selection <- TRUE
-      
-      leafletProxy("map", session = session) %>%
-        clearGroup("selection") %>%
-        addMarkers(
-          lng = rv$lon,
-          lat = rv$lat,
-          group = "selection",
-          popup = "Selected point"
-        )
+      set_location(
+        lat = input$map_click$lat,
+        lon = input$map_click$lng,
+        label = "Map click",
+        geom_type = "Point"
+      )
+
+      draw_selected_location()
     })
     
     ########################################################
@@ -232,11 +252,12 @@ mapModuleServer <- function(id, parent_session) {
         return()
       }
       
-      rv$lat <- extracted$lat
-      rv$lon <- extracted$lon
-      rv$geom_type <- extracted$type
-      rv$label <- paste(extracted$type, "selection")
-      rv$has_user_selection <- TRUE
+      set_location(
+        lat = extracted$lat,
+        lon = extracted$lon,
+        label = paste(extracted$type, "selection"),
+        geom_type = extracted$type
+      )
       
       leafletProxy("map", session = session) %>%
         clearGroup("selection") %>%
@@ -250,6 +271,30 @@ mapModuleServer <- function(id, parent_session) {
           popup = paste0("Using ", extracted$type, " centroid")
         )
     })
+
+    if (!is.null(shared_state)) {
+      observe({
+        req(shared_state$lat, shared_state$lon)
+
+        changed <- !isTRUE(all.equal(rv$lat, shared_state$lat)) ||
+          !isTRUE(all.equal(rv$lon, shared_state$lon)) ||
+          !identical(rv$label, shared_state$label) ||
+          !identical(rv$geom_type, shared_state$geom_type)
+
+        if (!isTRUE(changed)) {
+          return()
+        }
+
+        rv$lat <- shared_state$lat
+        rv$lon <- shared_state$lon
+        rv$label <- shared_state$label
+        rv$geom_type <- shared_state$geom_type
+        rv$has_user_selection <- isTRUE(shared_state$has_user_selection)
+
+        updateTextInput(session, "location_query", value = rv$label)
+        draw_selected_location()
+      })
+    }
     
     ########################################################
     # Go-to-plots button:
@@ -264,7 +309,7 @@ mapModuleServer <- function(id, parent_session) {
         style = "margin-top: 10px; margin-bottom: 4px; text-align: right;",
         actionButton(
           inputId = session$ns("confirm_selection"),
-          label = "Go to Risk Plots",
+          label = "Update Risk Plots",
           class = "btn-primary"
         )
       )
@@ -277,7 +322,7 @@ mapModuleServer <- function(id, parent_session) {
       updateTabsetPanel(
         session = parent_session,
         inputId = "main_tabs",
-        selected = "Risk Plots"
+        selected = target_tab
       )
     })
     

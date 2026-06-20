@@ -4,75 +4,70 @@
 ############################################################
 
 aboutPageUI <- function(id = NULL) {
-  
+
   tagList(
-    
+
     div(
-      style = "max-width: 900px; margin: auto; line-height: 1.6;",
-      
-      h2("About This Tool"),
-      
+      style = "max-width: 980px; margin: auto; line-height: 1.5;",
+
+      h2("About Potato Predictive Tools"),
+
       p(
-        "This tool estimates seasonal risk for potato root-knot nematodes ",
-        "(Meloidogyne spp.) using accumulated soil temperature degree days ",
-        "derived from historical and forecast soil temperature data."
+        "This app is a growing collection of weather-driven predictive tools ",
+        "for potato pests and diseases. Each page keeps the workflow consistent ",
+        "while preserving disease-specific thresholds and data sources."
       ),
-      
+
       hr(),
-      
-      h3("Biological Background"),
-      
-      p(
-        "Root-knot nematodes infect potato roots during the second-stage juvenile ",
-        "(J2) life stage. Eggs develop in soil and hatch when temperatures become ",
-        "suitable for development."
-      ),
-      
-      p(
-        "Because egg development and juvenile emergence are strongly controlled by ",
-        "soil temperature, accumulated soil temperature (degree days) can be used ",
-        "to estimate key stages in nematode population development."
-      ),
-      
-      tags$ul(
-        tags$li("Initial J2 emergence, marking the beginning of infection risk"),
-        tags$li("Peak infection windows when root invasion is most likely"),
-        tags$li("Population reproduction thresholds that can lead to rapid population growth")
-      ),
-      
-      hr(),
-      
-      h3("Data Sources"),
-      
-      tags$ul(
-        tags$li(
-          strong("Soil temperature data: "),
-          "Open-Meteo weather API historical and forecast soil temperature products."
+
+      h3("Current Disease Pages"),
+
+      tags$table(
+        class = "table table-condensed",
+        tags$thead(
+          tags$tr(
+            tags$th("Page"),
+            tags$th("Current model"),
+            tags$th("Primary data")
+          )
         ),
-        tags$li(
-          strong("Forecast horizon: "),
-          "14-day soil temperature forecast."
-        ),
-        tags$li(
-          strong("Biological parameters: "),
-          "Published research on Meloidogyne development and potato infection dynamics."
+        tags$tbody(
+          tags$tr(
+            tags$td("Root-Knot Nematode"),
+            tags$td("Soil-temperature degree-day risk timing for Meloidogyne spp."),
+            tags$td("CoAgMET station observations with gridded projection, or gridded map-point soil temperature")
+          ),
+          tags$tr(
+            tags$td("Early Blight"),
+            tags$td("Franc et al. 1988 air-temperature day-degree thresholds for potato early blight"),
+            tags$td("CoAgMET station observations with gridded projection, or gridded map-point air temperature")
+          )
         )
       ),
-      
-      hr(),
-      
-      h3("Model Limitations"),
-      
-      tags$ul(
-        tags$li("Degree-day models approximate nematode development but do not account for soil moisture."),
-        tags$li("Local soil conditions, irrigation practices, and cultivar resistance can alter infection timing."),
-        tags$li("Forecast uncertainty increases beyond approximately 10 to 14 days.")
+
+      tags$details(
+        tags$summary("Design pattern"),
+        tags$ul(
+          tags$li("Each pest or disease gets a dedicated page."),
+          tags$li("The sidebar workflow stays consistent across models."),
+          tags$li("Advanced thresholds remain available but are lower-friction for normal users."),
+          tags$li("Future models can be added as new modules.")
+        )
       ),
-      
+
+      tags$details(
+        tags$summary("Limitations"),
+        tags$ul(
+          tags$li("Degree-day models approximate development and risk; they do not replace scouting or local expertise."),
+          tags$li("Forecast uncertainty increases beyond approximately 10 to 14 days."),
+          tags$li("Disease-specific thresholds should be recalibrated before use outside the regions where they were developed.")
+        )
+      ),
+
       hr(),
-      
+
       p(
-        em("This tool is intended for research and educational purposes.")
+        em("This tool suite is intended for research and educational purposes.")
       )
     )
   )
